@@ -83,7 +83,7 @@
           addBtn.addEventListener('click', function() {
             t.popup({
               title: 'Select Children',
-              url: './add-children.html',
+              url: t.signUrl('./add-children.html'),
               height: 400
             });
           });
@@ -93,7 +93,7 @@
           parentBtn.addEventListener('click', function() {
             t.popup({
               title: 'Select Parent Card',
-              url: './set-parent.html',
+              url: t.signUrl('./set-parent.html'),
               height: 400
             });
           });
