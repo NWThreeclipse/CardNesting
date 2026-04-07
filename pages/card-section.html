@@ -19,6 +19,16 @@
     .inline-actions { display: flex; gap: 6px; margin-top: 8px; }
     .inline-btn { padding: 6px 12px; background: #091e420a; border: none; border-radius: 3px; font-size: 13px; color: #172b4d; cursor: pointer; flex: 1; text-align: center; }
     .inline-btn:hover { background: #091e4214; }
+    .inline-btn.active { background: #0079bf; color: white; }
+    .search-area { margin-top: 8px; display: none; }
+    .search-area.visible { display: block; }
+    .search-area input { width: 100%; padding: 6px 8px; border: 2px solid #dfe1e6; border-radius: 4px; font-size: 13px; outline: none; margin-bottom: 4px; }
+    .search-area input:focus { border-color: #0079bf; }
+    .search-results { max-height: 180px; overflow-y: auto; }
+    .search-card { padding: 6px 8px; margin: 2px 0; background: #f4f5f7; border-radius: 4px; cursor: pointer; font-size: 13px; }
+    .search-card:hover { background: #e4f0f6; color: #0079bf; }
+    .search-empty { padding: 8px; color: #97a0af; font-size: 13px; text-align: center; }
+    .search-label { font-size: 11px; color: #97a0af; margin-bottom: 4px; }
   </style>
 </head>
 <body>
@@ -27,106 +37,211 @@
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
   <script>
     var t = TrelloPowerUp.iframe();
+    var currentCardId, allCards, nestingData;
+    var mode = null;
 
-    t.card('id').then(function(card) {
-      Promise.all([
-        t.get(card.id, 'shared', 'nesting'),
-        t.cards('id', 'name')
-      ]).then(function(results) {
-        var data = results[0] || {};
-        var allCards = results[1];
-        var content = document.getElementById('content');
-        var html = '';
-
-        // Show parent info if this is a child
-        if (data.isChild && data.parentId) {
-          var parent = allCards.find(function(c) { return c.id === data.parentId; });
-          html += '<div class="section-group">';
-          html += '<div class="parent-label">Parent</div>';
-          html += '<div class="parent-row" data-navigate="' + (parent ? parent.id : '') + '">' + (parent ? parent.name : '(deleted card)') + '</div>';
-          html += '</div>';
-        }
-
-        // Show children if this is a parent
-        if (data.isParent && data.childIds && data.childIds.length > 0) {
-          html += '<div class="section-group">';
-          html += '<div class="parent-label">Children (' + data.childIds.length + ')</div>';
-          data.childIds.forEach(function(childId) {
-            var child = allCards.find(function(c) { return c.id === childId; });
-            if (child) {
-              html += '<div class="child-row">' +
-                '<span class="child-prefix">↳</span>' +
-                '<span class="child-name" data-navigate="' + childId + '">' + child.name + '</span>' +
-                '<span class="unlink-x" data-child="' + childId + '" title="Unlink">✕</span>' +
-                '</div>';
-            }
-          });
-          html += '</div>';
-        }
-
-        // Inline action buttons
-        if (!data.isChild) {
-          html += '<div class="inline-actions">';
-          html += '<button class="inline-btn" id="btn-add-children">+ Add Children</button>';
-          if (!data.isParent) {
-            html += '<button class="inline-btn" id="btn-set-parent">Set Parent</button>';
-          }
-          html += '</div>';
-        }
-
-        content.innerHTML = html;
-
-        // Handle inline button clicks
-        var addBtn = document.getElementById('btn-add-children');
-        if (addBtn) {
-          addBtn.addEventListener('click', function() {
-            t.popup({
-              title: 'Select Children',
-              url: './add-children.html',
-              height: 400
-            });
-          });
-        }
-        var parentBtn = document.getElementById('btn-set-parent');
-        if (parentBtn) {
-          parentBtn.addEventListener('click', function() {
-            t.popup({
-              title: 'Select Parent Card',
-              url: './set-parent.html',
-              height: 400
-            });
-          });
-        }
-
-        // Handle navigation clicks
-        content.addEventListener('click', function(e) {
-          var navId = e.target.getAttribute('data-navigate');
-          if (navId && !e.target.classList.contains('unlink-x')) {
-            t.showCard(navId);
-            return;
-          }
+    function reload() {
+      t.card('id').then(function(card) {
+        currentCardId = card.id;
+        Promise.all([
+          t.get(card.id, 'shared', 'nesting'),
+          t.cards('id', 'name')
+        ]).then(function(results) {
+          nestingData = results[0] || {};
+          allCards = results[1];
+          renderMain();
         });
-
-        // Handle unlink clicks
-        content.addEventListener('click', function(e) {
-          if (e.target.classList.contains('unlink-x')) {
-            var childId = e.target.getAttribute('data-child');
-            t.get(card.id, 'shared', 'nesting').then(function(pData) {
-              pData.childIds = (pData.childIds || []).filter(function(id) { return id !== childId; });
-              if (pData.childIds.length === 0) pData.isParent = false;
-              return t.set(card.id, 'shared', 'nesting', pData);
-            }).then(function() {
-              return t.set(childId, 'shared', 'nesting', {});
-            }).then(function() {
-              e.target.parentElement.remove();
-              t.sizeTo('#content');
-            });
-          }
-        });
-
-        t.sizeTo('#content');
       });
-    });
+    }
+
+    function renderMain() {
+      var data = nestingData;
+      var content = document.getElementById('content');
+      var html = '';
+
+      if (data.isChild && data.parentId) {
+        var parent = allCards.find(function(c) { return c.id === data.parentId; });
+        html += '<div class="section-group">';
+        html += '<div class="parent-label">Parent</div>';
+        html += '<div class="parent-row" data-navigate="' + (parent ? parent.id : '') + '">' + (parent ? parent.name : '(deleted card)') + '</div>';
+        html += '</div>';
+      }
+
+      if (data.isParent && data.childIds && data.childIds.length > 0) {
+        html += '<div class="section-group">';
+        html += '<div class="parent-label">Children (' + data.childIds.length + ')</div>';
+        data.childIds.forEach(function(childId) {
+          var child = allCards.find(function(c) { return c.id === childId; });
+          if (child) {
+            html += '<div class="child-row">' +
+              '<span class="child-prefix">↳</span>' +
+              '<span class="child-name" data-navigate="' + childId + '">' + child.name + '</span>' +
+              '<span class="unlink-x" data-child="' + childId + '" title="Unlink">✕</span>' +
+              '</div>';
+          }
+        });
+        html += '</div>';
+      }
+
+      if (!data.isChild) {
+        html += '<div class="inline-actions">';
+        html += '<button class="inline-btn' + (mode === 'children' ? ' active' : '') + '" id="btn-add-children">+ Add Children</button>';
+        if (!data.isParent) {
+          html += '<button class="inline-btn' + (mode === 'parent' ? ' active' : '') + '" id="btn-set-parent">Set Parent</button>';
+        }
+        html += '</div>';
+
+        html += '<div class="search-area' + (mode ? ' visible' : '') + '" id="search-area">';
+        html += '<div class="search-label">' + (mode === 'parent' ? 'Select a parent card:' : 'Select cards to add as children:') + '</div>';
+        html += '<input type="text" id="search-input" placeholder="Search cards...">';
+        html += '<div class="search-results" id="search-results"></div>';
+        html += '</div>';
+      }
+
+      content.innerHTML = html;
+      bindEvents();
+
+      if (mode) {
+        renderSearchResults('');
+        var input = document.getElementById('search-input');
+        if (input) input.focus();
+      }
+
+      t.sizeTo('#content');
+    }
+
+    function renderSearchResults(filter) {
+      var results = document.getElementById('search-results');
+      if (!results) return;
+
+      var existingChildren = nestingData.childIds || [];
+      var filtered = allCards.filter(function(c) {
+        if (c.id === currentCardId) return false;
+        if (mode === 'children' && existingChildren.indexOf(c.id) > -1) return false;
+        if (!filter) return true;
+        return c.name.toLowerCase().indexOf(filter.toLowerCase()) > -1;
+      });
+
+      if (filtered.length === 0) {
+        results.innerHTML = '<div class="search-empty">No cards found.</div>';
+        t.sizeTo('#content');
+        return;
+      }
+
+      results.innerHTML = filtered.map(function(c) {
+        return '<div class="search-card" data-card-id="' + c.id + '">' + c.name + '</div>';
+      }).join('');
+
+      t.sizeTo('#content');
+    }
+
+    function addChild(childId) {
+      var childCard = allCards.find(function(c) { return c.id === childId; });
+      t.get(childId, 'shared', 'nesting').then(function(childData) {
+        childData = childData || {};
+        if (childData.isChild) {
+          t.alert({ message: 'That card is already a child of another card.', duration: 3 });
+          return;
+        }
+        var children = nestingData.childIds || [];
+        children.push(childId);
+        nestingData.childIds = children;
+        nestingData.isParent = true;
+        t.set(currentCardId, 'shared', 'nesting', nestingData).then(function() {
+          childData.parentId = currentCardId;
+          childData.isChild = true;
+          return t.set(childId, 'shared', 'nesting', childData);
+        }).then(function() {
+          t.alert({ message: '"' + (childCard ? childCard.name : 'Card') + '" added.', duration: 2 });
+          renderMain();
+        });
+      });
+    }
+
+    function setParent(parentId) {
+      var parentCard = allCards.find(function(c) { return c.id === parentId; });
+      t.get(parentId, 'shared', 'nesting').then(function(parentData) {
+        parentData = parentData || {};
+        if (parentData.isChild) {
+          t.alert({ message: 'That card is already a child. Only one level deep.', duration: 3 });
+          return;
+        }
+        var children = parentData.childIds || [];
+        children.push(currentCardId);
+        parentData.childIds = children;
+        parentData.isParent = true;
+        t.set(parentId, 'shared', 'nesting', parentData).then(function() {
+          nestingData.parentId = parentId;
+          nestingData.isChild = true;
+          return t.set(currentCardId, 'shared', 'nesting', nestingData);
+        }).then(function() {
+          mode = null;
+          t.alert({ message: 'Linked to "' + (parentCard ? parentCard.name : 'Card') + '".', duration: 2 });
+          reload();
+        });
+      });
+    }
+
+    function bindEvents() {
+      var content = document.getElementById('content');
+
+      var addBtn = document.getElementById('btn-add-children');
+      if (addBtn) {
+        addBtn.addEventListener('click', function() {
+          mode = mode === 'children' ? null : 'children';
+          renderMain();
+        });
+      }
+
+      var parentBtn = document.getElementById('btn-set-parent');
+      if (parentBtn) {
+        parentBtn.addEventListener('click', function() {
+          mode = mode === 'parent' ? null : 'parent';
+          renderMain();
+        });
+      }
+
+      var searchInput = document.getElementById('search-input');
+      if (searchInput) {
+        searchInput.addEventListener('input', function() {
+          renderSearchResults(this.value);
+        });
+      }
+
+      var searchResults = document.getElementById('search-results');
+      if (searchResults) {
+        searchResults.addEventListener('click', function(e) {
+          var cardEl = e.target.closest('.search-card');
+          if (!cardEl) return;
+          var cardId = cardEl.getAttribute('data-card-id');
+          if (mode === 'children') addChild(cardId);
+          else if (mode === 'parent') setParent(cardId);
+        });
+      }
+
+      content.addEventListener('click', function(e) {
+        var navId = e.target.getAttribute('data-navigate');
+        if (navId && !e.target.classList.contains('unlink-x')) {
+          t.showCard(navId);
+          return;
+        }
+      });
+
+      content.addEventListener('click', function(e) {
+        if (e.target.classList.contains('unlink-x')) {
+          var childId = e.target.getAttribute('data-child');
+          nestingData.childIds = (nestingData.childIds || []).filter(function(id) { return id !== childId; });
+          if (nestingData.childIds.length === 0) nestingData.isParent = false;
+          t.set(currentCardId, 'shared', 'nesting', nestingData).then(function() {
+            return t.set(childId, 'shared', 'nesting', {});
+          }).then(function() {
+            renderMain();
+          });
+        }
+      });
+    }
+
+    reload();
   </script>
 </body>
 </html>
