@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body>
+  <div id="app">
+    <div id="card-list"></div>
+  </div>
+
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+
+    t.card('id').then(function(card) {
+      t.get(card.id, 'shared', 'nesting').then(function(data) {
+        data = data || {};
+        var childIds = data.childIds || [];
+
+        if (childIds.length === 0) {
+          document.getElementById('card-list').innerHTML = '<div class="empty">No children linked.</div>';
+          return;
+        }
+
+        t.cards('id', 'name').then(function(allCards) {
+          var list = document.getElementById('card-list');
+          childIds.forEach(function(childId) {
+            var childCard = allCards.find(function(c) { return c.id === childId; });
+            if (!childCard) return;
+
+            var row = document.createElement('div');
+            row.className = 'card-row has-action';
+            row.innerHTML = '<span class="card-name">↳ ' + childCard.name + '</span>' +
+              '<button class="unlink-btn" data-id="' + childId + '">✕</button>';
+            list.appendChild(row);
+          });
+
+          // Handle unlink clicks
+          list.addEventListener('click', function(e) {
+            if (e.target.classList.contains('unlink-btn')) {
+              var unlinkId = e.target.getAttribute('data-id');
+              // Remove from parent
+              t.get(card.id, 'shared', 'nesting').then(function(pData) {
+                pData.childIds = (pData.childIds || []).filter(function(id) { return id !== unlinkId; });
+                if (pData.childIds.length === 0) pData.isParent = false;
+                return t.set(card.id, 'shared', 'nesting', pData);
+              }).then(function() {
+                // Clear child data
+                return t.set(unlinkId, 'shared', 'nesting', {});
+              }).then(function() {
+                e.target.parentElement.remove();
+                t.alert({ message: 'Child unlinked.', duration: 2 });
+              });
+            }
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html>

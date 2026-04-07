@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #172b4d; padding: 8px 0; }
+    .parent-label { font-size: 11px; text-transform: uppercase; color: #5e6c84; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
+    .child-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; margin: 2px 0; background: #f4f5f7; border-radius: 4px; cursor: default; }
+    .child-row:hover { background: #ebecf0; }
+    .child-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .child-prefix { color: #5e6c84; margin-right: 6px; }
+    .unlink-x { color: #b3bac5; cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
+    .unlink-x:hover { color: #eb5a46; }
+    .parent-row { padding: 6px 8px; background: #e4f0f6; border-radius: 4px; border-left: 3px solid #0079bf; }
+    .section-group { margin-bottom: 8px; }
+  </style>
+</head>
+<body>
+  <div id="content"></div>
+
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+
+    t.card('id').then(function(card) {
+      Promise.all([
+        t.get(card.id, 'shared', 'nesting'),
+        t.cards('id', 'name')
+      ]).then(function(results) {
+        var data = results[0] || {};
+        var allCards = results[1];
+        var content = document.getElementById('content');
+        var html = '';
+
+        // Show parent info if this is a child
+        if (data.isChild && data.parentId) {
+          var parent = allCards.find(function(c) { return c.id === data.parentId; });
+          html += '<div class="section-group">';
+          html += '<div class="parent-label">Parent</div>';
+          html += '<div class="parent-row">' + (parent ? parent.name : '(deleted card)') + '</div>';
+          html += '</div>';
+        }
+
+        // Show children if this is a parent
+        if (data.isParent && data.childIds && data.childIds.length > 0) {
+          html += '<div class="section-group">';
+          html += '<div class="parent-label">Children (' + data.childIds.length + ')</div>';
+          data.childIds.forEach(function(childId) {
+            var child = allCards.find(function(c) { return c.id === childId; });
+            if (child) {
+              html += '<div class="child-row">' +
+                '<span class="child-prefix">↳</span>' +
+                '<span class="child-name">' + child.name + '</span>' +
+                '<span class="unlink-x" data-child="' + childId + '" title="Unlink">✕</span>' +
+                '</div>';
+            }
+          });
+          html += '</div>';
+        }
+
+        content.innerHTML = html;
+
+        // Handle unlink clicks
+        content.addEventListener('click', function(e) {
+          if (e.target.classList.contains('unlink-x')) {
+            var childId = e.target.getAttribute('data-child');
+            t.get(card.id, 'shared', 'nesting').then(function(pData) {
+              pData.childIds = (pData.childIds || []).filter(function(id) { return id !== childId; });
+              if (pData.childIds.length === 0) pData.isParent = false;
+              return t.set(card.id, 'shared', 'nesting', pData);
+            }).then(function() {
+              return t.set(childId, 'shared', 'nesting', {});
+            }).then(function() {
+              e.target.parentElement.remove();
+              t.sizeTo('#content');
+            });
+          }
+        });
+
+        t.sizeTo('#content');
+      });
+    });
+  </script>
+</body>
+</html>

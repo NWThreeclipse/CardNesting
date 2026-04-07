@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body>
+  <div id="app">
+    <div id="parent-info"></div>
+  </div>
+
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+
+    t.card('id').then(function(card) {
+      t.get(card.id, 'shared', 'nesting').then(function(data) {
+        data = data || {};
+        if (!data.parentId) {
+          document.getElementById('parent-info').innerHTML = '<div class="empty">No parent linked.</div>';
+          return;
+        }
+
+        t.cards('id', 'name', 'url').then(function(allCards) {
+          var parent = allCards.find(function(c) { return c.id === data.parentId; });
+          if (!parent) {
+            document.getElementById('parent-info').innerHTML = '<div class="empty">Parent card not found (may have been deleted).</div>';
+            return;
+          }
+
+          var div = document.getElementById('parent-info');
+          div.innerHTML = 
+            '<div class="parent-card">' +
+              '<div class="parent-label">Parent Card</div>' +
+              '<div class="card-row">' + parent.name + '</div>' +
+              '<button class="action-btn" id="unlink">Unlink from Parent</button>' +
+            '</div>';
+
+          document.getElementById('unlink').addEventListener('click', function() {
+            // Remove from parent's children
+            t.get(data.parentId, 'shared', 'nesting').then(function(pData) {
+              pData = pData || {};
+              pData.childIds = (pData.childIds || []).filter(function(id) { return id !== card.id; });
+              if (pData.childIds.length === 0) pData.isParent = false;
+              return t.set(data.parentId, 'shared', 'nesting', pData);
+            }).then(function() {
+              return t.set(card.id, 'shared', 'nesting', {});
+            }).then(function() {
+              t.alert({ message: 'Unlinked from parent.', duration: 2 });
+              t.closePopup();
+            });
+          });
+        });
+      });
+    });
+  </script>
+</body>
+</html>

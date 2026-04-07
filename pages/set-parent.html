@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body>
+  <div id="app">
+    <input type="text" id="search" placeholder="Search for parent card..." />
+    <div id="card-list"></div>
+  </div>
+
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+
+    t.card('id').then(function(card) {
+      var childId = card.id;
+
+      t.cards('id', 'name').then(function(cards) {
+        var list = document.getElementById('card-list');
+        var search = document.getElementById('search');
+
+        function render(filter) {
+          list.innerHTML = '';
+          var filtered = cards.filter(function(c) {
+            if (c.id === childId) return false;
+            if (!filter) return true;
+            return c.name.toLowerCase().indexOf(filter.toLowerCase()) > -1;
+          });
+
+          if (filtered.length === 0) {
+            list.innerHTML = '<div class="empty">No cards found.</div>';
+            return;
+          }
+
+          filtered.forEach(function(parentCard) {
+            var div = document.createElement('div');
+            div.className = 'card-row';
+            div.textContent = parentCard.name;
+            div.addEventListener('click', function() {
+              // Check if target card is itself a child
+              t.get(parentCard.id, 'shared', 'nesting').then(function(parentData) {
+                parentData = parentData || {};
+                if (parentData.isChild) {
+                  t.alert({ message: 'That card is already a child. Cards can only nest one level deep.', duration: 4 });
+                  return;
+                }
+
+                // Set parent's children list
+                var children = parentData.childIds || [];
+                if (children.indexOf(childId) === -1) {
+                  children.push(childId);
+                }
+                parentData.childIds = children;
+                parentData.isParent = true;
+                return t.set(parentCard.id, 'shared', 'nesting', parentData).then(function() {
+                  // Set this card as child
+                  return t.get(childId, 'shared', 'nesting').then(function(childData) {
+                    childData = childData || {};
+                    childData.parentId = parentCard.id;
+                    childData.isChild = true;
+                    return t.set(childId, 'shared', 'nesting', childData);
+                  });
+                }).then(function() {
+                  t.alert({ message: 'Linked to "' + parentCard.name + '" as child.', duration: 3 });
+                  t.closePopup();
+                });
+              });
+            });
+            list.appendChild(div);
+          });
+        }
+
+        search.addEventListener('input', function() {
+          render(this.value);
+        });
+
+        render('');
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="../css/popup.css">
+</head>
+<body>
+  <div id="app">
+    <div class="header-info">All card groups on this board</div>
+    <div id="groups"></div>
+  </div>
+
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script>
+    var t = TrelloPowerUp.iframe();
+
+    t.cards('id', 'name').then(function(allCards) {
+      // Fetch nesting data for all cards
+      var promises = allCards.map(function(card) {
+        return t.get(card.id, 'shared', 'nesting').then(function(data) {
+          return { card: card, data: data || {} };
+        });
+      });
+
+      Promise.all(promises).then(function(results) {
+        var parents = results.filter(function(r) { return r.data.isParent; });
+        var groups = document.getElementById('groups');
+
+        if (parents.length === 0) {
+          groups.innerHTML = '<div class="empty">No card groups yet. Open a card and use "Add Children" to create groups.</div>';
+          return;
+        }
+
+        parents.forEach(function(parent) {
+          var section = document.createElement('div');
+          section.className = 'group-section';
+
+          var title = document.createElement('div');
+          title.className = 'group-title';
+          title.textContent = '📁 ' + parent.card.name;
+          section.appendChild(title);
+
+          (parent.data.childIds || []).forEach(function(childId) {
+            var child = allCards.find(function(c) { return c.id === childId; });
+            if (child) {
+              var row = document.createElement('div');
+              row.className = 'card-row indent';
+              row.textContent = '↳ ' + child.name;
+              section.appendChild(row);
+            }
+          });
+
+          groups.appendChild(section);
+        });
+      });
+    });
+  </script>
+</body>
+</html>
