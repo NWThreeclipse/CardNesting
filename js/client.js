@@ -203,9 +203,10 @@ TrelloPowerUp.initialize({
   // ── Card Back Section ──
   'card-back-section': function(t, options) {
     return getCurrentCardData(t).then(function(current) {
-      if (!current.data.isParent && !current.data.isChild) {
-        return null;
-      }
+      var childCount = (current.data.childIds || []).length;
+      var baseHeight = 50;
+      if (current.data.isParent) baseHeight = Math.min(50 + childCount * 36 + 44, 340);
+      else if (current.data.isChild) baseHeight = 80;
 
       return {
         title: '🔗 Card Nesting',
@@ -213,9 +214,7 @@ TrelloPowerUp.initialize({
         content: {
           type: 'iframe',
           url: t.signUrl('./pages/card-section.html'),
-          height: current.data.isParent ? 
-            Math.min(50 + (current.data.childIds || []).length * 36, 300) : 
-            80
+          height: baseHeight
         }
       };
     });

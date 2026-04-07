@@ -16,6 +16,9 @@
     .parent-row { padding: 6px 8px; background: #e4f0f6; border-radius: 4px; border-left: 3px solid #0079bf; cursor: pointer; }
     .parent-row:hover { background: #d6e8f3; }
     .section-group { margin-bottom: 8px; }
+    .inline-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .inline-btn { padding: 6px 12px; background: #091e420a; border: none; border-radius: 3px; font-size: 13px; color: #172b4d; cursor: pointer; flex: 1; text-align: center; }
+    .inline-btn:hover { background: #091e4214; }
   </style>
 </head>
 <body>
@@ -61,7 +64,39 @@
           html += '</div>';
         }
 
+        // Inline action buttons
+        if (!data.isChild) {
+          html += '<div class="inline-actions">';
+          html += '<button class="inline-btn" id="btn-add-children">+ Add Children</button>';
+          if (!data.isParent) {
+            html += '<button class="inline-btn" id="btn-set-parent">Set Parent</button>';
+          }
+          html += '</div>';
+        }
+
         content.innerHTML = html;
+
+        // Handle inline button clicks
+        var addBtn = document.getElementById('btn-add-children');
+        if (addBtn) {
+          addBtn.addEventListener('click', function() {
+            t.popup({
+              title: 'Select Children',
+              url: './add-children.html',
+              height: 400
+            });
+          });
+        }
+        var parentBtn = document.getElementById('btn-set-parent');
+        if (parentBtn) {
+          parentBtn.addEventListener('click', function() {
+            t.popup({
+              title: 'Select Parent Card',
+              url: './set-parent.html',
+              height: 400
+            });
+          });
+        }
 
         // Handle navigation clicks
         content.addEventListener('click', function(e) {
