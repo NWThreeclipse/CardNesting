@@ -8,11 +8,13 @@
     .parent-label { font-size: 11px; text-transform: uppercase; color: #5e6c84; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
     .child-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; margin: 2px 0; background: #f4f5f7; border-radius: 4px; cursor: default; }
     .child-row:hover { background: #ebecf0; }
-    .child-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .child-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; color: #0079bf; }
+    .child-name:hover { text-decoration: underline; }
     .child-prefix { color: #5e6c84; margin-right: 6px; }
     .unlink-x { color: #b3bac5; cursor: pointer; padding: 0 4px; font-size: 16px; line-height: 1; }
     .unlink-x:hover { color: #eb5a46; }
-    .parent-row { padding: 6px 8px; background: #e4f0f6; border-radius: 4px; border-left: 3px solid #0079bf; }
+    .parent-row { padding: 6px 8px; background: #e4f0f6; border-radius: 4px; border-left: 3px solid #0079bf; cursor: pointer; }
+    .parent-row:hover { background: #d6e8f3; }
     .section-group { margin-bottom: 8px; }
   </style>
 </head>
@@ -38,7 +40,7 @@
           var parent = allCards.find(function(c) { return c.id === data.parentId; });
           html += '<div class="section-group">';
           html += '<div class="parent-label">Parent</div>';
-          html += '<div class="parent-row">' + (parent ? parent.name : '(deleted card)') + '</div>';
+          html += '<div class="parent-row" data-navigate="' + (parent ? parent.id : '') + '">' + (parent ? parent.name : '(deleted card)') + '</div>';
           html += '</div>';
         }
 
@@ -51,7 +53,7 @@
             if (child) {
               html += '<div class="child-row">' +
                 '<span class="child-prefix">↳</span>' +
-                '<span class="child-name">' + child.name + '</span>' +
+                '<span class="child-name" data-navigate="' + childId + '">' + child.name + '</span>' +
                 '<span class="unlink-x" data-child="' + childId + '" title="Unlink">✕</span>' +
                 '</div>';
             }
@@ -60,6 +62,15 @@
         }
 
         content.innerHTML = html;
+
+        // Handle navigation clicks
+        content.addEventListener('click', function(e) {
+          var navId = e.target.getAttribute('data-navigate');
+          if (navId && !e.target.classList.contains('unlink-x')) {
+            t.showCard(navId);
+            return;
+          }
+        });
 
         // Handle unlink clicks
         content.addEventListener('click', function(e) {
