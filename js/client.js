@@ -204,9 +204,9 @@ TrelloPowerUp.initialize({
   'card-back-section': function(t, options) {
     return getCurrentCardData(t).then(function(current) {
       var childCount = (current.data.childIds || []).length;
-      var baseHeight = 160;
-      if (current.data.isParent) baseHeight = Math.min(160 + childCount * 36 + 44, 500);
-      else if (current.data.isChild) baseHeight = 160;
+      var baseHeight = 60;
+      if (current.data.isParent) baseHeight = Math.min(40 + childCount * 36 + 44, 500);
+      else if (current.data.isChild) baseHeight = 60;
 
       return {
         title: '🔗 Card Nesting',

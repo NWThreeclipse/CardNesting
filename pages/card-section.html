@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #172b4d; padding: 8px 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #172b4d; padding: 0; }
     .parent-label { font-size: 11px; text-transform: uppercase; color: #5e6c84; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.5px; }
     .child-row { display: flex; align-items: center; justify-content: space-between; padding: 6px 8px; margin: 2px 0; background: #f4f5f7; border-radius: 4px; cursor: default; }
     .child-row:hover { background: #ebecf0; }
@@ -17,6 +17,9 @@
     .parent-row:hover { background: #d6e8f3; }
     .section-group { margin-bottom: 8px; }
     .empty { color: #97a0af; font-size: 13px; padding: 4px 0; }
+    .inline-actions { display: flex; gap: 6px; margin-top: 8px; }
+    .inline-btn { padding: 6px 12px; background: #091e420a; border: none; border-radius: 3px; font-size: 13px; color: #172b4d; cursor: pointer; flex: 1; text-align: center; }
+    .inline-btn:hover { background: #091e4214; }
   </style>
 </head>
 <body>
@@ -61,10 +64,40 @@
         }
 
         if (!data.isParent && !data.isChild) {
-          html += '<div class="empty">No links yet. Use the sidebar buttons to add children or set a parent.</div>';
+          html += '<div class="empty">No links yet.</div>';
+        }
+
+        if (!data.isChild) {
+          html += '<div class="inline-actions">';
+          html += '<button class="inline-btn" id="btn-add-children">+ Add Children</button>';
+          if (!data.isParent) {
+            html += '<button class="inline-btn" id="btn-set-parent">Set Parent</button>';
+          }
+          html += '</div>';
         }
 
         content.innerHTML = html;
+
+        var addBtn = document.getElementById('btn-add-children');
+        if (addBtn) {
+          addBtn.addEventListener('click', function() {
+            t.popup({
+              title: 'Select Children',
+              url: './add-children.html',
+              height: 400
+            });
+          });
+        }
+        var parentBtn = document.getElementById('btn-set-parent');
+        if (parentBtn) {
+          parentBtn.addEventListener('click', function() {
+            t.popup({
+              title: 'Select Parent Card',
+              url: './set-parent.html',
+              height: 400
+            });
+          });
+        }
 
         content.addEventListener('click', function(e) {
           var navId = e.target.getAttribute('data-navigate');
