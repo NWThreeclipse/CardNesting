@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="../css/popup.css">
 </head>
 <body>
@@ -10,12 +11,14 @@
   </div>
 
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script src="../js/nesting.js"></script>
   <script>
     var t = TrelloPowerUp.iframe();
 
-    t.card('id').then(function(card) {
-      t.get(card.id, 'shared', 'nesting').then(function(data) {
-        data = data || {};
+    t.card('id').then(function (card) {
+      getPluginData(t, card.id).then(function (data) {
+        return pruneStaleChildren(t, card.id, data);
+      }).then(function (data) {
         var childIds = data.childIds || [];
 
         if (childIds.length === 0) {
@@ -23,39 +26,46 @@
           return;
         }
 
-        t.cards('id', 'name').then(function(allCards) {
+        t.cards('id', 'name').then(function (allCards) {
           var list = document.getElementById('card-list');
-          childIds.forEach(function(childId) {
-            var childCard = allCards.find(function(c) { return c.id === childId; });
+          childIds.forEach(function (childId) {
+            var childCard = allCards.find(function (c) { return c.id === childId; });
             if (!childCard) return;
 
             var row = document.createElement('div');
             row.className = 'card-row has-action';
-            row.innerHTML = '<span class="card-name">↳ ' + childCard.name + '</span>' +
-              '<button class="unlink-btn" data-id="' + childId + '">✕</button>';
+
+            var name = document.createElement('span');
+            name.className = 'card-name';
+            name.textContent = '↳ ' + childCard.name;
+            row.appendChild(name);
+
+            var btn = document.createElement('button');
+            btn.className = 'unlink-btn';
+            btn.setAttribute('data-id', childId);
+            btn.textContent = '✕';
+            row.appendChild(btn);
+
             list.appendChild(row);
           });
 
-          // Handle unlink clicks
-          list.addEventListener('click', function(e) {
-            if (e.target.classList.contains('unlink-btn')) {
-              var unlinkId = e.target.getAttribute('data-id');
-              // Remove from parent
-              t.get(card.id, 'shared', 'nesting').then(function(pData) {
-                pData.childIds = (pData.childIds || []).filter(function(id) { return id !== unlinkId; });
-                if (pData.childIds.length === 0) pData.isParent = false;
-                return t.set(card.id, 'shared', 'nesting', pData);
-              }).then(function() {
-                // Clear child data
-                return t.set(unlinkId, 'shared', 'nesting', {});
-              }).then(function() {
-                e.target.parentElement.remove();
-                t.alert({ message: 'Child unlinked.', duration: 2 });
-              });
-            }
+          list.addEventListener('click', function (e) {
+            if (!e.target.classList.contains('unlink-btn')) return;
+            var unlinkId = e.target.getAttribute('data-id');
+            unlinkChild(t, card.id, unlinkId).then(function () {
+              e.target.parentElement.remove();
+              t.alert({ message: 'Child unlinked.', duration: 2 });
+              if (!list.querySelector('.card-row')) {
+                list.innerHTML = '<div class="empty">No children linked.</div>';
+              }
+            }).catch(function () {
+              t.alert({ message: 'Failed to unlink. Please try again.', duration: 3 });
+            });
           });
         });
       });
+    }).catch(function () {
+      document.getElementById('card-list').innerHTML = '<div class="empty">Failed to load children.</div>';
     });
   </script>
 </body>

@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; font-size: 14px; color: #172b4d; padding: 0; }
@@ -17,114 +18,116 @@
     .parent-row:hover { background: #d6e8f3; }
     .section-group { margin-bottom: 8px; }
     .empty { color: #97a0af; font-size: 13px; padding: 4px 0; }
-    .inline-actions { display: flex; gap: 6px; margin-top: 8px; }
-    .inline-btn { padding: 6px 12px; background: #091e420a; border: none; border-radius: 3px; font-size: 13px; color: #172b4d; cursor: pointer; flex: 1; text-align: center; }
-    .inline-btn:hover { background: #091e4214; }
   </style>
 </head>
 <body>
   <div id="content"></div>
 
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script src="../js/nesting.js"></script>
   <script>
     var t = TrelloPowerUp.iframe();
 
-    t.card('id').then(function(card) {
+    t.card('id').then(function (card) {
       Promise.all([
-        t.get(card.id, 'shared', 'nesting'),
+        getPluginData(t, card.id),
         t.cards('id', 'name')
-      ]).then(function(results) {
-        var data = results[0] || {};
+      ]).then(function (results) {
+        var data = results[0];
         var allCards = results[1];
-        var content = document.getElementById('content');
-        var html = '';
 
-        if (data.isChild && data.parentId) {
-          var parent = allCards.find(function(c) { return c.id === data.parentId; });
-          html += '<div class="section-group">';
-          html += '<div class="parent-label">Parent</div>';
-          html += '<div class="parent-row" data-navigate="' + (parent ? parent.id : '') + '">' + (parent ? parent.name : '(deleted card)') + '</div>';
-          html += '</div>';
-        }
+        return pruneStaleChildren(t, card.id, data).then(function (data) {
+          var content = document.getElementById('content');
 
-        if (data.isParent && data.childIds && data.childIds.length > 0) {
-          html += '<div class="section-group">';
-          html += '<div class="parent-label">Children (' + data.childIds.length + ')</div>';
-          data.childIds.forEach(function(childId) {
-            var child = allCards.find(function(c) { return c.id === childId; });
-            if (child) {
-              html += '<div class="child-row">' +
-                '<span class="child-prefix">↳</span>' +
-                '<span class="child-name" data-navigate="' + childId + '">' + child.name + '</span>' +
-                '<span class="unlink-x" data-child="' + childId + '" title="Unlink">✕</span>' +
-                '</div>';
-            }
-          });
-          html += '</div>';
-        }
-
-        if (!data.isParent && !data.isChild) {
-          html += '<div class="empty">No links yet.</div>';
-        }
-
-        if (!data.isChild) {
-          html += '<div class="inline-actions">';
-          html += '<button class="inline-btn" id="btn-add-children">+ Add Children</button>';
-          if (!data.isParent) {
-            html += '<button class="inline-btn" id="btn-set-parent">Set Parent</button>';
-          }
-          html += '</div>';
-        }
-
-        content.innerHTML = html;
-
-        var addBtn = document.getElementById('btn-add-children');
-        if (addBtn) {
-          addBtn.addEventListener('click', function() {
-            t.popup({
-              title: 'Select Children',
-              url: './add-children.html',
-              height: 400
-            });
-          });
-        }
-        var parentBtn = document.getElementById('btn-set-parent');
-        if (parentBtn) {
-          parentBtn.addEventListener('click', function() {
-            t.popup({
-              title: 'Select Parent Card',
-              url: './set-parent.html',
-              height: 400
-            });
-          });
-        }
-
-        content.addEventListener('click', function(e) {
-          var navId = e.target.getAttribute('data-navigate');
-          if (navId && !e.target.classList.contains('unlink-x')) {
-            t.showCard(navId);
+          if (!data.isParent && !data.isChild) {
+            content.innerHTML = '<div class="empty">No links yet. Use the buttons on the right to get started.</div>';
+            t.sizeTo('#content');
             return;
           }
-        });
 
-        content.addEventListener('click', function(e) {
-          if (e.target.classList.contains('unlink-x')) {
-            var childId = e.target.getAttribute('data-child');
-            t.get(card.id, 'shared', 'nesting').then(function(pData) {
-              pData.childIds = (pData.childIds || []).filter(function(id) { return id !== childId; });
-              if (pData.childIds.length === 0) pData.isParent = false;
-              return t.set(card.id, 'shared', 'nesting', pData);
-            }).then(function() {
-              return t.set(childId, 'shared', 'nesting', {});
-            }).then(function() {
-              e.target.parentElement.remove();
-              t.sizeTo('#content');
-            });
+          if (data.isChild && data.parentId) {
+            var parent = allCards.find(function (c) { return c.id === data.parentId; });
+            var group = document.createElement('div');
+            group.className = 'section-group';
+
+            var label = document.createElement('div');
+            label.className = 'parent-label';
+            label.textContent = 'Parent';
+            group.appendChild(label);
+
+            var row = document.createElement('div');
+            row.className = 'parent-row';
+            row.textContent = parent ? parent.name : '(deleted card)';
+            if (parent) {
+              row.addEventListener('click', function () { t.showCard(parent.id); });
+            }
+            group.appendChild(row);
+            content.appendChild(group);
           }
-        });
 
-        t.sizeTo('#content');
+          if (data.isParent && data.childIds && data.childIds.length > 0) {
+            var group = document.createElement('div');
+            group.className = 'section-group';
+
+            var label = document.createElement('div');
+            label.className = 'parent-label';
+            label.textContent = 'Children (' + data.childIds.length + ')';
+            group.appendChild(label);
+
+            data.childIds.forEach(function (childId) {
+              var child = allCards.find(function (c) { return c.id === childId; });
+              if (!child) return;
+
+              var row = document.createElement('div');
+              row.className = 'child-row';
+
+              var prefix = document.createElement('span');
+              prefix.className = 'child-prefix';
+              prefix.textContent = '↳';
+              row.appendChild(prefix);
+
+              var name = document.createElement('span');
+              name.className = 'child-name';
+              name.textContent = child.name;
+              name.addEventListener('click', function () { t.showCard(childId); });
+              row.appendChild(name);
+
+              var unlink = document.createElement('span');
+              unlink.className = 'unlink-x';
+              unlink.title = 'Unlink';
+              unlink.textContent = '✕';
+              unlink.addEventListener('click', function () {
+                unlinkChild(t, card.id, childId).then(function () {
+                  row.remove();
+                  var remaining = group.querySelectorAll('.child-row');
+                  if (remaining.length === 0) {
+                    label.textContent = 'Children (0)';
+                    group.innerHTML = '';
+                    var empty = document.createElement('div');
+                    empty.className = 'empty';
+                    empty.textContent = 'No children linked.';
+                    group.appendChild(empty);
+                  } else {
+                    label.textContent = 'Children (' + remaining.length + ')';
+                  }
+                  t.sizeTo('#content');
+                }).catch(function () {
+                  t.alert({ message: 'Failed to unlink. Please try again.', duration: 3 });
+                });
+              });
+              row.appendChild(unlink);
+
+              group.appendChild(row);
+            });
+
+            content.appendChild(group);
+          }
+
+          t.sizeTo('#content');
+        });
       });
+    }).catch(function () {
+      document.getElementById('content').innerHTML = '<div class="empty">Failed to load nesting data.</div>';
     });
   </script>
 </body>

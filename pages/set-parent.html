@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="../css/popup.css">
 </head>
 <body>
@@ -11,19 +12,20 @@
   </div>
 
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script src="../js/nesting.js"></script>
   <script>
     var t = TrelloPowerUp.iframe();
 
-    t.card('id').then(function(card) {
+    t.card('id').then(function (card) {
       var childId = card.id;
 
-      t.cards('id', 'name').then(function(cards) {
+      t.cards('id', 'name').then(function (cards) {
         var list = document.getElementById('card-list');
         var search = document.getElementById('search');
 
         function render(filter) {
           list.innerHTML = '';
-          var filtered = cards.filter(function(c) {
+          var filtered = cards.filter(function (c) {
             if (c.id === childId) return false;
             if (!filter) return true;
             return c.name.toLowerCase().indexOf(filter.toLowerCase()) > -1;
@@ -34,50 +36,34 @@
             return;
           }
 
-          filtered.forEach(function(parentCard) {
+          filtered.forEach(function (parentCard) {
             var div = document.createElement('div');
             div.className = 'card-row';
             div.textContent = parentCard.name;
-            div.addEventListener('click', function() {
-              // Check if target card is itself a child
-              t.get(parentCard.id, 'shared', 'nesting').then(function(parentData) {
-                parentData = parentData || {};
-                if (parentData.isChild) {
-                  t.alert({ message: 'That card is already a child. Cards can only nest one level deep.', duration: 4 });
+            div.addEventListener('click', function () {
+              linkChild(t, parentCard.id, childId).then(function (result) {
+                if (!result.ok) {
+                  t.alert({ message: result.reason, duration: 4 });
                   return;
                 }
-
-                // Set parent's children list
-                var children = parentData.childIds || [];
-                if (children.indexOf(childId) === -1) {
-                  children.push(childId);
-                }
-                parentData.childIds = children;
-                parentData.isParent = true;
-                return t.set(parentCard.id, 'shared', 'nesting', parentData).then(function() {
-                  // Set this card as child
-                  return t.get(childId, 'shared', 'nesting').then(function(childData) {
-                    childData = childData || {};
-                    childData.parentId = parentCard.id;
-                    childData.isChild = true;
-                    return t.set(childId, 'shared', 'nesting', childData);
-                  });
-                }).then(function() {
-                  t.alert({ message: 'Linked to "' + parentCard.name + '" as child.', duration: 3 });
-                  t.closePopup();
-                });
+                t.alert({ message: 'Linked to "' + parentCard.name + '" as child.', duration: 3 });
+                t.closePopup();
+              }).catch(function () {
+                t.alert({ message: 'Failed to set parent. Please try again.', duration: 3 });
               });
             });
             list.appendChild(div);
           });
         }
 
-        search.addEventListener('input', function() {
+        search.addEventListener('input', function () {
           render(this.value);
         });
 
         render('');
       });
+    }).catch(function () {
+      document.getElementById('card-list').innerHTML = '<div class="empty">Failed to load cards.</div>';
     });
   </script>
 </body>

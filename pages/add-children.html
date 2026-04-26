@@ -2,6 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="../css/popup.css">
 </head>
 <body>
@@ -11,79 +12,66 @@
   </div>
 
   <script src="https://p.trellocdn.com/power-up.min.js"></script>
+  <script src="../js/nesting.js"></script>
   <script>
     var t = TrelloPowerUp.iframe();
 
-    function renderCards(cards, currentId, existingChildren) {
-      var list = document.getElementById('card-list');
-      var search = document.getElementById('search');
-
-      function render(filter) {
-        list.innerHTML = '';
-        var filtered = cards.filter(function(c) {
-          if (c.id === currentId) return false;
-          if (existingChildren.indexOf(c.id) > -1) return false;
-          if (!filter) return true;
-          return c.name.toLowerCase().indexOf(filter.toLowerCase()) > -1;
-        });
-
-        if (filtered.length === 0) {
-          list.innerHTML = '<div class="empty">No available cards found.</div>';
-          return;
-        }
-
-        filtered.forEach(function(card) {
-          var div = document.createElement('div');
-          div.className = 'card-row';
-          div.textContent = card.name;
-          div.addEventListener('click', function() {
-            // Get current card's nesting data
-            t.get(currentId, 'shared', 'nesting').then(function(data) {
-              data = data || {};
-              var children = data.childIds || [];
-              if (children.indexOf(card.id) === -1) {
-                children.push(card.id);
-              }
-              data.childIds = children;
-              data.isParent = true;
-              return t.set(currentId, 'shared', 'nesting', data);
-            }).then(function() {
-              // Set child's parent reference
-              return t.get(card.id, 'shared', 'nesting').then(function(childData) {
-                childData = childData || {};
-                childData.parentId = currentId;
-                childData.isChild = true;
-                return t.set(card.id, 'shared', 'nesting', childData);
-              });
-            }).then(function() {
-              t.alert({ message: '"' + card.name + '" added as child.', duration: 3 });
-              existingChildren.push(card.id);
-              render(search.value);
-            });
-          });
-          list.appendChild(div);
-        });
-      }
-
-      search.addEventListener('input', function() {
-        render(this.value);
-      });
-
-      render('');
-    }
-
-    t.card('id').then(function(card) {
+    t.card('id').then(function (card) {
       var currentId = card.id;
 
       Promise.all([
         t.cards('id', 'name'),
-        t.get(currentId, 'shared', 'nesting')
-      ]).then(function(results) {
+        getPluginData(t, currentId)
+      ]).then(function (results) {
         var cards = results[0];
-        var data = results[1] || {};
+        var data = results[1];
         var existingChildren = data.childIds || [];
-        renderCards(cards, currentId, existingChildren);
+        var list = document.getElementById('card-list');
+        var search = document.getElementById('search');
+
+        function render(filter) {
+          list.innerHTML = '';
+          var filtered = cards.filter(function (c) {
+            if (c.id === currentId) return false;
+            if (existingChildren.indexOf(c.id) > -1) return false;
+            if (!filter) return true;
+            return c.name.toLowerCase().indexOf(filter.toLowerCase()) > -1;
+          });
+
+          if (filtered.length === 0) {
+            list.innerHTML = '<div class="empty">No available cards found.</div>';
+            return;
+          }
+
+          filtered.forEach(function (card) {
+            var div = document.createElement('div');
+            div.className = 'card-row';
+            div.textContent = card.name;
+            div.addEventListener('click', function () {
+              linkChild(t, currentId, card.id).then(function (result) {
+                if (!result.ok) {
+                  t.alert({ message: result.reason, duration: 4 });
+                  return;
+                }
+                t.alert({ message: '"' + card.name + '" added as child.', duration: 3 });
+                existingChildren.push(card.id);
+                render(search.value);
+              }).catch(function () {
+                t.alert({ message: 'Failed to add child. Please try again.', duration: 3 });
+              });
+            });
+            list.appendChild(div);
+          });
+        }
+
+        search.addEventListener('input', function () {
+          render(this.value);
+        });
+
+        render('');
       });
+    }).catch(function () {
+      document.getElementById('card-list').innerHTML = '<div class="empty">Failed to load cards.</div>';
     });
   </script>
 </body>
